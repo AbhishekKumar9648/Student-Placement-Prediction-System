@@ -1,51 +1,98 @@
 import streamlit as st
+import pickle
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
-# Page configuration
+# ---------- Page configuration ----------
 st.set_page_config(
     page_title="Student Placement Prediction System",
     page_icon="🎓",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Title
-st.title("🎓 Student Placement Prediction System")
-st.write("Predict your placement chances based on your profile.")
+
+# ---------- Load trained model ----------
+@st.cache_resource
+def load_model():
+    with open("model/placement_model.pkl", "rb") as f:
+        return pickle.load(f)
+
+
+model = load_model()
+
+MODEL_FEATURES = [
+    "CGPA",
+    "10th_Marks",
+    "12th_Marks",
+    "Internship",
+    "Projects",
+    "Communication_Skills",
+    "Technical_Skills",
+    "Backlogs",
+]
+
+# ---------- Header ----------
+st.markdown(
+    """
+    <style>
+        .main-header {
+            background: linear-gradient(90deg, #5b2c6f, #8e44ad);
+            padding: 28px 24px;
+            border-radius: 14px;
+            color: white;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .main-header h1 { margin: 0; font-size: 34px; }
+        .main-header p { margin: 6px 0 0 0; font-size: 16px; opacity: 0.9; }
+    </style>
+    <div class="main-header">
+        <h1>🎓 Student Placement Prediction System</h1>
+        <p>Predict your placement chances based on your profile using Machine Learning</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.divider()
 
-# Input section
+# ---------- Input section ----------
 st.subheader("📋 Student Input Details")
 
 col1, col2 = st.columns(2)
 
 with col1:
     cgpa = st.number_input(
-        "CGPA",
+        "CGPA (0-10)",
         min_value=0.0,
         max_value=10.0,
-        value=7.0,
-        step=0.1
+        value=7.5,
+        step=0.1,
+        help="Your cumulative grade point average",
     )
 
     marks_10 = st.number_input(
         "10th Marks (%)",
         min_value=0.0,
         max_value=100.0,
-        value=70.0,
-        step=1.0
+        value=80.0,
+        step=1.0,
     )
 
     marks_12 = st.number_input(
         "12th Marks (%)",
         min_value=0.0,
         max_value=100.0,
-        value=70.0,
-        step=1.0
+        value=78.0,
+        step=1.0,
     )
 
     internship = st.selectbox(
         "Internship",
-        ["Yes", "No"]
+        ["Yes", "No"],
+        help="Have you completed an internship?",
     )
 
 with col2:
@@ -53,22 +100,22 @@ with col2:
         "Number of Projects",
         min_value=0,
         max_value=20,
-        value=2,
-        step=1
+        value=3,
+        step=1,
     )
 
     communication = st.slider(
-        "Communication (0-10)",
+        "Communication Skills (0-10)",
         min_value=0,
         max_value=10,
-        value=7
+        value=7,
     )
 
     technical = st.slider(
         "Technical Skills (0-10)",
         min_value=0,
         max_value=10,
-        value=7
+        value=7,
     )
 
     backlogs = st.number_input(
@@ -76,121 +123,190 @@ with col2:
         min_value=0,
         max_value=20,
         value=0,
-        step=1
+        step=1,
     )
 
-# Prediction function
-def calculate_score():
-    score = 0
+# ---------- Predict button ----------
+col_btn = st.columns([1, 2, 1])
+with col_btn[1]:
+    predict_clicked = st.button("🔮 Predict Placement", use_container_width=True)
 
-    # CGPA
-    if cgpa >= 8.5:
-        score += 20
-    elif cgpa >= 7.5:
-        score += 17
-    elif cgpa >= 6.5:
-        score += 14
-    elif cgpa >= 5.5:
-        score += 10
-    else:
-        score += 5
+if predict_clicked:
+    # Build feature vector in the exact order the model expects
+    features = [
+        cgpa,
+        marks_10,
+        marks_12,
+        1 if internship == "Yes" else 0,
+        projects,
+        communication,
+        technical,
+        backlogs,
+    ]
 
-    # 10th marks
-    if marks_10 >= 80:
-        score += 10
-    elif marks_10 >= 70:
-        score += 8
-    elif marks_10 >= 60:
-        score += 6
-    else:
-        score += 3
+    input_df = pd.DataFrame([features], columns=MODEL_FEATURES)
 
-    # 12th marks
-    if marks_12 >= 80:
-        score += 10
-    elif marks_12 >= 70:
-        score += 8
-    elif marks_12 >= 60:
-        score += 6
-    else:
-        score += 3
+    # Model prediction (1 = Placed, 0 = Not Placed)
+    prediction = model.predict(input_df)[0]
+    probability = model.predict_proba(input_df)[0]
 
-    # Internship
-    if internship == "Yes":
-        score += 10
-
-    # Projects
-    score += min(projects * 4, 12)
-
-    # Communication
-    score += communication
-
-    # Technical skills
-    score += technical
-
-    # Backlogs penalty
-    score -= min(backlogs * 5, 15)
-
-    # Keep score between 0 and 100
-    score = max(0, min(score, 100))
-
-    return score
-
-
-def get_package(percentage):
-    if percentage >= 80:
-        return 7.5
-    elif percentage >= 75:
-        return 6.0
-    elif percentage >= 70:
-        return 5.2
-    elif percentage >= 65:
-        return 4.5
-    elif percentage >= 60:
-        return 4.0
-    else:
-        return 0.0
-
-
-# Predict button
-if st.button("🔮 Predict Placement", use_container_width=True):
-
-    percentage = calculate_score()
-    package = get_package(percentage)
-
-    if percentage >= 70:
-        prediction = "Likely to be Placed"
-    elif percentage >= 50:
-        prediction = "Moderate Placement Chance"
-    else:
-        prediction = "Low Placement Chance"
+    # Probability of being placed (class 1)
+    placed_prob = probability[1] * 100
+    not_placed_prob = probability[0] * 100
 
     st.divider()
-
     st.subheader("📊 Prediction Results")
 
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Prediction", prediction)
-
-    with col2:
-        st.metric("Placement Chance", f"{percentage:.1f}%")
-
-    with col3:
-        if package > 0:
-            st.metric("Expected Package", f"{package:.1f} LPA")
-        else:
-            st.metric("Expected Package", "Not Estimated")
-
-    if percentage >= 70:
-        st.success("🎉 Good placement chances based on the entered profile.")
-    elif percentage >= 50:
-        st.warning("⚠️ Moderate placement chances. Improve your skills and profile.")
+    if prediction == 1:
+        result_text = "PLACED"
+        result_color = "#27ae60"
+        result_msg = "🎉 Congratulations! The model predicts you are likely to be placed."
     else:
-        st.error("📚 Placement chances are currently low. Focus on improving your profile.")
+        result_text = "NOT PLACED"
+        result_color = "#e74c3c"
+        result_msg = "📚 The model predicts you may not be placed. Focus on improving your profile."
 
+    # ---- Result cards ----
+    c1, c2, c3 = st.columns(3)
 
-# Footer
+    with c1:
+        st.markdown("**Prediction**")
+        st.markdown(
+            f"<h2 style='color:{result_color}; margin:0;'>{result_text}</h2>",
+            unsafe_allow_html=True,
+        )
+
+    with c2:
+        st.markdown("**Placement Chance**")
+        st.markdown(
+            f"<h2 style='color:#2980b9; margin:0;'>{placed_prob:.1f}%</h2>",
+            unsafe_allow_html=True,
+        )
+        st.progress(int(placed_prob))
+
+    with c3:
+        st.markdown("**Expected Package**")
+
+        # Estimate package based on placement probability
+        if placed_prob >= 95:
+            pkg = 12.0
+        elif placed_prob >= 90:
+            pkg = 10.0
+        elif placed_prob >= 85:
+            pkg = 9.0
+        elif placed_prob >= 80:
+            pkg = 7.5
+        elif placed_prob >= 75:
+            pkg = 6.0
+        elif placed_prob >= 70:
+            pkg = 5.2
+        elif placed_prob >= 65:
+            pkg = 4.5
+        elif placed_prob >= 60:
+            pkg = 4.0
+        else:
+            pkg = 0.0
+
+        if pkg > 0:
+            st.markdown(
+                f"<h2 style='color:#8e44ad; margin:0;'>₹{pkg} LPA</h2>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"<h2 style='color:#95a5a6; margin:0;'>Not Estimated</h2>",
+                unsafe_allow_html=True,
+            )
+
+    st.info(result_msg)
+
+    # ---------- Charts ----------
+    st.divider()
+    st.subheader("📈 Factor Contribution Analysis")
+
+    # Factor scores (0-100 scale) for visualization
+    cgpa_score = cgpa * 10
+    intern_score = 100 if internship == "Yes" else 0
+    project_score = min(projects, 5) * 20
+    communication_score = communication * 10
+    technical_score = technical * 10
+    backlogs_penalty = min(backlogs, 5) * 10
+
+    factors = [
+        "CGPA",
+        "10th Marks",
+        "12th Marks",
+        "Internship",
+        "Projects",
+        "Communication",
+        "Technical",
+        "Backlogs",
+    ]
+    values = [
+        cgpa_score,
+        marks_10,
+        marks_12,
+        intern_score,
+        project_score,
+        communication_score,
+        technical_score,
+        backlogs_penalty,
+    ]
+
+    chart_col1, chart_col2 = st.columns(2)
+
+    # Pie chart
+    with chart_col1:
+        st.markdown("**Factor Contribution (Pie Chart)**")
+        pie_values = [max(v, 0) for v in values[:7]]
+        pie_labels = factors[:7]
+        fig1, ax1 = plt.subplots(figsize=(6, 5))
+        ax1.pie(
+            pie_values,
+            labels=pie_labels,
+            autopct="%1.1f%%",
+            startangle=90,
+            colors=["#5b2c6f", "#3498db", "#27ae60", "#e67e22",
+                    "#8e44ad", "#2980b9", "#f1c40f"],
+        )
+        ax1.set_title("Factor Contribution (Pie Chart)")
+        st.pyplot(fig1)
+
+    # Bar chart
+    with chart_col2:
+        st.markdown("**Factor Scores (Bar Chart)**")
+        colors = ["#5b2c6f", "#3498db", "#27ae60", "#e67e22",
+                  "#8e44ad", "#2980b9", "#f1c40f", "#e74c3c"]
+        fig2, ax2 = plt.subplots(figsize=(6, 5))
+        bars = ax2.bar(factors, values, color=colors)
+        ax2.set_title("Factor Scores (Bar Chart)")
+        ax2.set_ylabel("Score (0-100)")
+        ax2.set_ylim(0, 100)
+        ax2.tick_params(axis="x", rotation=30)
+        for bar in bars:
+            ax2.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 2,
+                str(round(bar.get_height())),
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
+        fig2.tight_layout()
+        st.pyplot(fig2)
+
+    # ---------- Model confidence ----------
+    st.divider()
+    st.subheader("🔍 Model Confidence")
+    conf_c1, conf_c2 = st.columns(2)
+    with conf_c1:
+        st.metric("Placed Probability", f"{placed_prob:.1f}%")
+    with conf_c2:
+        st.metric("Not Placed Probability", f"{not_placed_prob:.1f}%")
+
+else:
+    st.info("👆 Fill in your details and click **Predict Placement** to see the result.")
+
+# ---------- Footer ----------
 st.divider()
-st.caption("Student Placement Prediction System | College Project")
+st.caption("🎓 Student Placement Prediction System | Machine Learning Project (Random Forest Classifier)")
