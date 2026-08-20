@@ -1,0 +1,8 @@
+{
+  "name": "Placement Predictor",
+  "description": "Student placement prediction system with machine learning insights, salary package estimations, and factor contribution analytics",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
